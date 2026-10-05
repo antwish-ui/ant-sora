@@ -36,15 +36,45 @@ export const BackendIntegrationModal: React.FC<BackendIntegrationModalProps> = (
 
     try {
       const res = await fetch(proxyUrl.trim(), { method: 'GET' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(
+          `HTTP ${res.status}: ${res.statusText}${
+            errorData?.error ? ` - ${JSON.stringify(errorData.error)}` : ''
+          }`
+        );
+      }
       const data = await res.json();
       setTestStatus('success');
       setTestMessage(
-        `Connected successfully! Received ${Array.isArray(data?.result?.records || data) ? 'records array' : 'JSON payload'}.`
+        `Connected successfully to ${proxyUrl}!\nResponse: ${JSON.stringify(data, null, 2).slice(0, 300)}...`
       );
     } catch (err: any) {
       setTestStatus('error');
-      setTestMessage(err.message || 'Connection failed. Verify CORS and server status.');
+      setTestMessage(err.message || 'Connection failed. Verify server status.');
+    }
+  };
+
+  const handleQuickTest = async (endpoint: string) => {
+    setTestStatus('testing');
+    setTestMessage(`Testing ${endpoint}...`);
+    try {
+      const res = await fetch(endpoint, { method: 'GET' });
+      const data = await res.json().catch(() => ({ status: res.statusText }));
+      if (res.ok) {
+        setTestStatus('success');
+        setTestMessage(
+          `Connected to ${endpoint}!\nStatus: ${res.status}\nPayload: ${JSON.stringify(data, null, 2)}`
+        );
+      } else {
+        setTestStatus('error');
+        setTestMessage(
+          `Received HTTP ${res.status} from ${endpoint}.\n${JSON.stringify(data, null, 2)}`
+        );
+      }
+    } catch (err: any) {
+      setTestStatus('error');
+      setTestMessage(`Error contacting ${endpoint}: ${err?.message || 'Network error'}`);
     }
   };
 
@@ -112,16 +142,40 @@ async def get_sora_rates():
 
         <div className="flex items-center gap-2 mb-2 text-slate-900 font-semibold text-lg">
           <Server className="w-5 h-5 text-slate-700" />
-          Backend Integration & MAS API Proxy
+          MAS Serverless Connection (/api/sora & /api/health)
         </div>
         <p className="text-xs text-slate-500 mb-5 leading-relaxed">
-          The frontend is pre-wired to consume live MAS rates. When you are ready to connect your backend proxy, enter your endpoint URL below.
+          Serverless routes are implemented in the project root <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-800">/api</code> directory: <code className="font-mono text-slate-800">/api/sora.ts</code> and <code className="font-mono text-slate-800">/api/health.ts</code>.
         </p>
+
+        {/* Quick Test Bar for /api/sora & /api/health */}
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <button
+            onClick={() => {
+              setProxyUrl('/api/health');
+              handleQuickTest('/api/health');
+            }}
+            className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-left transition-colors"
+          >
+            <div className="text-xs font-semibold text-slate-900">Test /api/health</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">Check runtime status & MAS key setup</div>
+          </button>
+          <button
+            onClick={() => {
+              setProxyUrl('/api/sora');
+              handleQuickTest('/api/sora');
+            }}
+            className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-left transition-colors"
+          >
+            <div className="text-xs font-semibold text-slate-900">Test /api/sora</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">Query MAS daily interest rates</div>
+          </button>
+        </div>
 
         {/* Custom Proxy Input */}
         <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 mb-5">
           <label className="text-xs font-semibold text-slate-700 block mb-1.5">
-            Backend Proxy Endpoint URL
+            Active Endpoint or Custom Proxy URL
           </label>
           <div className="flex gap-2">
             <input
@@ -149,7 +203,7 @@ async def get_sora_rates():
 
           {testMessage && (
             <div
-              className={`text-xs mt-2.5 p-2 rounded ${
+              className={`text-xs mt-2.5 p-2 rounded whitespace-pre-wrap ${
                 testStatus === 'success'
                   ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                   : testStatus === 'error'
@@ -165,15 +219,12 @@ async def get_sora_rates():
         {/* Integration Instructions */}
         <div className="space-y-4 text-xs text-slate-600">
           <div>
-            <h4 className="font-semibold text-slate-900 mb-1">Why use a backend proxy?</h4>
-            <p className="leading-relaxed">
-              Monetary Authority of Singapore (MAS) rates are published at 9:00 AM SGT on every business day. A backend proxy allows you to:
-            </p>
-            <ul className="list-disc pl-5 mt-1 space-y-0.5 text-slate-600">
-              <li>Cache responses to avoid MAS DataStore rate limiting</li>
-              <li>Bypass browser Cross-Origin Resource Sharing (CORS) policies</li>
-              <li>Optionally store daily rates in your database for custom audit trails</li>
-            </ul>
+            <h4 className="font-semibold text-slate-900 mb-1">MAS Gateway Endpoint & Header</h4>
+            <div className="p-2.5 bg-slate-100 rounded text-[11px] font-mono text-slate-800 space-y-1">
+              <div><strong>Target:</strong> https://eservices.mas.gov.sg/apimg-gw/server/monthly_statistical_bulletin_non610mssql/domestic_interest_rates_daily/views/domestic_interest_rates_daily</div>
+              <div><strong>Required Header:</strong> KeyId: &lt;MAS_KEY_ID&gt;</div>
+              <div><strong>Env Variable:</strong> MAS_KEY_ID (configured in .env / secrets, never hardcoded)</div>
+            </div>
           </div>
 
           {/* Code snippet tabs */}
