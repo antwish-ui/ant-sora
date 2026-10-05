@@ -1,0 +1,6 @@
+{
+  "name": "Singapore SORA Mortgage & Interest Calculator",
+  "description": "Accurately calculate Singapore loan repayments using official Monetary Authority of Singapore (MAS) backed SORA overnight rates, compounded benchmarks, and sensitivity stress tests.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
